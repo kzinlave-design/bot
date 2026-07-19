@@ -98,6 +98,16 @@ API_HASH = "e0c264702c9dc3f9dc79a4c0385fca4c"
 SESSION_NAME = "userbot_session"
 DOWNLOADS_DIR = "downloads"
 
+# Начиная с Python 3.10 asyncio перестал автоматически создавать event loop
+# вне async-функций, а в Python 3.14 (его использует Render по умолчанию)
+# это стало выбрасывать RuntimeError даже в главном потоке. Telethon же при
+# создании TelegramClient() сразу пытается получить текущий loop, поэтому
+# создаём и устанавливаем его явно ДО создания клиента.
+try:
+    asyncio.get_event_loop()
+except RuntimeError:
+    asyncio.set_event_loop(asyncio.new_event_loop())
+
 client = TelegramClient(SESSION_NAME, API_ID, API_HASH)
 START_TIME = time.time()
 os.makedirs(DOWNLOADS_DIR, exist_ok=True)
