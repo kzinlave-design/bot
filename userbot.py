@@ -83,7 +83,6 @@ from zoneinfo import ZoneInfo
 
 from telethon import TelegramClient, events
 from telethon.tl.functions.account import UpdateProfileRequest
-from telethon.tl.functions.messages import EditPinnedMessageRequest
 from telethon.tl.types import InputMediaPoll, Poll, PollAnswer
 import yt_dlp
 import requests
@@ -807,7 +806,7 @@ async def pin_handler(event):
         await event.edit("❌ Ответь этой командой на сообщение, которое нужно закрепить")
         return
     try:
-        await client(EditPinnedMessageRequest(peer=event.chat_id, id=event.reply_to_msg_id, silent=True))
+        await client.pin_message(event.chat_id, event.reply_to_msg_id, notify=False)
         await event.edit("📌 Сообщение закреплено")
     except Exception as e:
         await event.edit(f"❌ Не удалось закрепить: {e}")
@@ -815,7 +814,7 @@ async def pin_handler(event):
 @client.on(events.NewMessage(outgoing=True, pattern=r"^\.открепить$"))
 async def unpin_handler(event):
     try:
-        await client(EditPinnedMessageRequest(peer=event.chat_id, id=0, unpin=True))
+        await client.unpin_message(event.chat_id)
         await event.edit("📌 Всё откреплено")
     except Exception as e:
         await event.edit(f"❌ Не удалось открепить: {e}")
