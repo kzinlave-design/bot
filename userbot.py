@@ -28,6 +28,30 @@ API_ID и API_HASH зашиты прямо в коде ниже — значит
             Build Command: pip install -r requirements.txt
             Start Command: python userbot.py
 
+----------------------------------------------------------------
+ВАРИАНТ: ХОСТИНГ КАК WEB SERVICE (если Background Worker недоступен)
+----------------------------------------------------------------
+Render засчитывает сервис "живым", только если он отвечает на HTTP-запросы
+по порту из переменной окружения PORT. Юзербот сам по себе ничего не
+слушает, поэтому в файл встроен крошечный веб-сервер (см. функцию
+_run_web_server ниже) — он поднимается автоматически, если Render передал
+переменную PORT, и никак не мешает командам бота.
+
+New + → Web Service → подключи репозиторий → укажи:
+    Build Command: pip install -r requirements.txt
+    Start Command: python userbot.py
+    Health Check Path: /
+PORT Render передаёт сам, вручную его задавать не нужно.
+
+⚠️ У Web Service на бесплатном тарифе Render есть нюанс: если на сервис
+долго нет входящих HTTP-запросов, Render "усыпляет" его — а вместе с ним
+и юзербот перестанет отвечать на команды в Telegram, пока не придёт новый
+HTTP-запрос и Render не разбудит сервис. Из-за этого Background Worker —
+более надёжный вариант именно для юзербота, который должен работать
+постоянно. Web Service имеет смысл, если на твоём аккаунте Render
+Background Worker недоступен или ты специально хочешь держать URL для
+пинга (например, внешним UptimeRobot, чтобы не давать сервису засыпать).
+
 Шаг 3. Первый запуск на Render потребует ввести код из Telegram — это
         нужно сделать через вкладку Shell на Render (там можно запустить
         интерактивную команду и ввести код). После этого появится файл
@@ -66,6 +90,7 @@ import requests
 import qrcode
 import pyfiglet
 from num2words import num2words
+from aiohttp import web
 
 # ==================== НАСТРОЙКИ ====================
 API_ID = 35405573
@@ -1153,8 +1178,32 @@ async def help_handler(event):
     await event.edit(text)
 
 # ==================== ЗАПУСК ====================
+async def _run_web_server():
+    # Крошечный HTTP-сервер только для Render Web Service: Render считает
+    # сервис "живым", пока тот отвечает на HTTP по порту из переменной PORT.
+    # Сам юзербот тут ни при чём — это просто заглушка для health-check'а.
+    async def handle(request):
+        return web.Response(text="✅ Юзербот работает")
+
+    app = web.Application()
+    app.add_routes([web.get("/", handle)])
+    runner = web.AppRunner(app)
+    await runner.setup()
+    port = int(os.environ.get("PORT", 8080))
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+    print(f"🌐 Веб-сервер для health-check запущен на порту {port}")
+
+async def _main():
+    await client.start()
+    # Веб-сервер нужен только если Render (или другой хостинг) передал PORT —
+    # то есть когда сервис создан как Web Service. При обычном локальном
+    # запуске или как Background Worker переменной PORT нет, и сервер не поднимается.
+    if os.environ.get("PORT"):
+        asyncio.create_task(_run_web_server())
+    print("✅ Юзербот запущен! Напиши себе .пмщ чтобы увидеть все команды.")
+    await client.run_until_disconnected()
+
 if __name__ == "__main__":
     print("🚀 Юзербот запускается...")
-    client.start()
-    print("✅ Юзербот запущен! Напиши себе .пмщ чтобы увидеть все команды.")
-    client.run_until_disconnected()
+    client.loop.run_until_complete(_main())
